@@ -1,12 +1,10 @@
-enum Ensure
-{
+enum Ensure {
     Absent
     Present
 }
 
 [DscResource()]
-class XmlContent
-{
+class XmlContent {
     [DscProperty(Key)]
     [string]$Path
      
@@ -19,8 +17,8 @@ class XmlContent
     [DscProperty()]
     [hashtable]$Namespaces
      
-    [DscProperty(Mandatory)]
-    [Ensure]$Ensure
+    [DscProperty()]
+    [Ensure]$Ensure = [Ensure]::Present
     
     XmlContent() {
         if (-not $this.Namespaces) {
@@ -28,15 +26,13 @@ class XmlContent
         }
     }
 
-    [void] Set()
-    {
+    [void] Set() {
         Write-Verbose "Reading XML file from path '$($this.Path)"
-        $xml = [xml](Get-Content -Path $this.Path)
+        $xml = [xml](Get-Content -LiteralPath $this.Path -Encoding utf8)
         
-        if ($this.Ensure -eq 'Present')
-        {
+        if ($this.Ensure -eq 'Present') {
             $param = @{
-                XPath  = $this.XPath
+                XPath = $this.XPath
             }
             if ($this.Namespaces.Count) {
                 $param.Add('Namespace', $this.Namespaces)
@@ -50,21 +46,20 @@ class XmlContent
             
             $parentXPath = $this.XPath.Substring(0, $this.XPath.LastIndexOf('/'))
             $param = @{
-                XPath  = $parentXPath
+                XPath = $parentXPath
             }
             if ($this.Namespaces.Count) {
                 $param.Add('Namespace', $this.Namespaces)
             }
             
-            Write-Verbose "Looking for the elemen's parent node. XPath is '$parentXPath'"
+            Write-Verbose "Looking for the element's parent node. XPath is '$parentXPath'"
             $parent = $xml | Select-Xml @param | Select-Object -ExpandProperty Node
             if (-not $parent) {
                 Write-Error "The parent node '$parentXPath' could not be found in XML file '$($this.Path)'."
                 return
             }
 
-            if (-not $element -and $this.Ensure -eq 'Present')
-            {                
+            if (-not $element -and $this.Ensure -eq 'Present') {                
                 Write-Verbose "The element could not be found but the parent node and Ensure is set to 'Present'"
                 $newElementName = $this.XPath.Substring($this.XPath.LastIndexOf('/') + 1)
                 Write-Verbose "`tNew element name is '$newElementName'"
@@ -72,24 +67,18 @@ class XmlContent
                 $parent.AppendChild($element)
             }
             
-            if ($this.Attributes)
-            {
-                foreach ($kvp in $this.Attributes.GetEnumerator())
-                {
+            if ($this.Attributes) {
+                foreach ($kvp in $this.Attributes.GetEnumerator()) {
                     $attribute = $element.Attributes | Where-Object Name -eq $kvp.Name
-                    if ($attribute)
-                    {
-                        if ($attribute.Value -eq $kvp.Value)
-                        {
+                    if ($attribute) {
+                        if ($attribute.Value -eq $kvp.Value) {
                             continue
                         }
-                        else
-                        {
+                        else {
                             $attribute.Value = $kvp.Value
                         }
                     }
-                    else
-                    {
+                    else {
                         $attribute = $parent.OwnerDocument.CreateAttribute($kvp.Name)
                         $attribute.Value = $kvp.Value
                         $element.Attributes.Append($attribute)
@@ -99,26 +88,22 @@ class XmlContent
                 $attributesCollection = New-Object System.Xml.XmlAttribute[]($element.Attributes.Count)
                 $element.Attributes.CopyTo($attributesCollection, 0)
                 
-                foreach ($attribute in $attributesCollection)
-                {
-                    if (-not $this.Attributes.ContainsKey($attribute.Name))
-                    {
+                foreach ($attribute in $attributesCollection) {
+                    if (-not $this.Attributes.ContainsKey($attribute.Name)) {
                         $element.Attributes.RemoveNamedItem($attribute.Name)
                     }
                 }
             }
         }
-        else
-        {
+        else {
             $param = @{
-                XPath  = $this.XPath
+                XPath = $this.XPath
             }
             if ($this.Namespaces.Count) {
                 $param.Add('Namespace', $this.Namespaces)
             }
             $element = $xml | Select-Xml @param | Select-Object -ExpandProperty Node
-            if ($element)
-            {
+            if ($element) {
                 $element.ParentNode.RemoveChild($element)
             }
         }
@@ -126,18 +111,15 @@ class XmlContent
         $xml.Save($this.Path)
     }
 
-    [bool] Test()
-    {
+    [bool] Test() {
         Write-Verbose 'Receiving current state'
         $currentState = $this.Get()
-        Write-Verbose 'Current state recevied'
+        Write-Verbose 'Current state received'
         
-        $attributesEqual = if ($this.Attributes)
-        {
+        $attributesEqual = if ($this.Attributes) {
             Compare-Hashtable -Reference $this.Attributes -Difference $currentState.Attributes
         }
-        else
-        {
+        else {
             $true
         }
         Write-Verbose "Attributes equal: $attributesEqual"
@@ -145,20 +127,19 @@ class XmlContent
         return ($this.Ensure -eq $currentState.Ensure) -band $attributesEqual
     }
 
-    [XmlContent]Get()
-    {
+    [XmlContent]Get() {
         $currentState = New-Object XmlContent
         $currentState.Path = $this.Path
         $currentState.XPath = $this.XPath
         $currentState.Attributes = @{}
 
         Write-Verbose "Reading XML file from path '$($this.Path)"
-        $xml = [xml](Get-Content -Path $this.Path)
+        $xml = [xml](Get-Content -LiteralPath $this.Path -Encoding utf8)
         if (-not $xml) {
             Write-Error "No xml content"
         }
         $param = @{
-            XPath  = $this.XPath
+            XPath = $this.XPath
         }
         if ($this.Namespaces.Count) {
             $param.Add('Namespace', $this.Namespaces)
@@ -169,17 +150,14 @@ class XmlContent
             return $currentState 
         }
         
-        if ($node)
-        {
+        if ($node) {
             $currentState.Ensure = 'Present'
         }
-        else
-        {
+        else {
             $currentState.Ensure = 'Absent'
         }
         
-        foreach ($attribute in $node.Attributes)
-        {
+        foreach ($attribute in $node.Attributes) {
             $currentState.Attributes.Add($attribute.Name, $attribute.Value)
         }
         
